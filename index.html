@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#141210">
+  <title>矿场 · 点击挖矿</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- 登录 / 注册 -->
+  <div id="authScreen" class="auth-screen">
+    <div class="auth-card">
+      <div class="auth-brand">
+        <div class="auth-logo" aria-hidden="true">
+          <svg viewBox="0 0 64 64">
+            <polygon points="32,6 55,19 58,43 41,58 19,55 6,36 12,15" fill="#3a332a" stroke="#0d0b09" stroke-width="2.5"/>
+            <polygon points="32,13 48,22 50,38 37,49 22,47 13,33 18,19" fill="#5b5145"/>
+            <path d="M22 28 l7 4 -3 9 -7 -3 z" fill="#d9a441"/>
+            <path d="M37 22 l6 5 -2 6 -6 -2 z" fill="#d9a441" opacity=".75"/>
+          </svg>
+        </div>
+        <h1>矿场</h1>
+        <p>点击挖矿 · 放置成长</p>
+      </div>
+
+      <div id="cloudAuth" hidden>
+        <div class="auth-tabs" role="tablist">
+          <button type="button" class="auth-tab active" data-tab="login" role="tab" aria-selected="true">登录</button>
+          <button type="button" class="auth-tab" data-tab="register" role="tab" aria-selected="false">注册</button>
+        </div>
+        <form id="authForm">
+          <label class="field">
+            <span>账号</span>
+            <input id="authUser" name="username" type="text" autocomplete="username" maxlength="16"
+                   placeholder="3-16 位字母、数字或下划线" required>
+          </label>
+          <label class="field">
+            <span>密码</span>
+            <input id="authPass" name="password" type="password" autocomplete="current-password"
+                   minlength="6" maxlength="64" placeholder="至少 6 位" required>
+          </label>
+          <p id="authError" class="form-error" role="alert"></p>
+          <button id="authSubmit" type="submit" class="btn-primary">登录</button>
+        </form>
+        <p class="auth-hint">云端账号：换设备登录可继续游戏进度。</p>
+      </div>
+
+      <div id="localAuth" hidden>
+        <p id="localNotice" class="auth-note">未配置云端服务，当前为本地试玩模式。存档只保存在本机浏览器中。</p>
+        <button id="guestBtn" type="button" class="btn-primary">进入本地试玩</button>
+        <p class="auth-hint">在 js/config.js 中填入 Supabase 项目地址和匿名密钥即可启用云端账号。</p>
+      </div>
+    </div>
+    <p class="auth-foot">test1 · 增量放置游戏</p>
+  </div>
+
+  <!-- 主游戏界面（唯一常驻页面） -->
+  <div id="gameScreen" class="game-screen" hidden>
+    <header class="topbar">
+      <div class="brand">
+        <span class="brand-name">矿场</span>
+        <span id="userTag" class="user-tag"></span>
+      </div>
+
+      <div class="stat-row">
+        <div class="stat">
+          <span class="stat-label">矿石</span>
+          <strong id="oreText" class="stat-value ore">0</strong>
+        </div>
+        <div class="stat">
+          <span class="stat-label">每秒产量</span>
+          <span id="prodText" class="stat-value">0</span>
+        </div>
+        <div class="stat">
+          <span class="stat-label">每次点击</span>
+          <span id="clickText" class="stat-value">1</span>
+        </div>
+      </div>
+
+      <nav class="topbar-actions" aria-label="功能入口">
+        <button type="button" class="btn-ghost" data-modal="skills">技能</button>
+        <button type="button" class="btn-ghost" data-modal="prestige">转生</button>
+        <button type="button" class="btn-ghost" data-modal="settings">设置</button>
+      </nav>
+    </header>
+
+    <main class="game-main">
+      <section class="mine-panel">
+        <button id="rock" type="button" class="rock" aria-label="点击挖矿">
+          <svg class="rock-art" viewBox="0 0 220 200" aria-hidden="true">
+            <defs>
+              <linearGradient id="rockBody" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0" stop-color="#665a4b"/>
+                <stop offset="1" stop-color="#2e2822"/>
+              </linearGradient>
+              <linearGradient id="rockVein" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0" stop-color="#f0c46a"/>
+                <stop offset="1" stop-color="#a97b28"/>
+              </linearGradient>
+            </defs>
+            <polygon points="110,8 186,52 208,132 151,192 62,190 12,128 32,50"
+                     fill="url(#rockBody)" stroke="#0d0b09" stroke-width="5" stroke-linejoin="round"/>
+            <polygon points="110,8 186,52 152,96 78,78 32,50" fill="#776a59" opacity=".55"/>
+            <polygon points="78,78 152,96 132,146 62,134" fill="#4a4238" opacity=".75"/>
+            <polygon points="12,128 62,134 52,182 18,148" fill="#3a342c"/>
+            <polygon points="151,192 132,146 170,120 198,150" fill="#3f382f"/>
+            <path d="M58 60 l20 14 -9 26 -22 -8 z" fill="url(#rockVein)"/>
+            <path d="M116 104 l17 10 -6 20 -17 -5 z" fill="url(#rockVein)" opacity=".85"/>
+            <path d="M154 138 l14 8 -4 16 -14 -5 z" fill="url(#rockVein)" opacity=".7"/>
+            <path d="M88 20 l10 8 -4 12 -11 -4 z" fill="#d9a441" opacity=".55"/>
+          </svg>
+          <span class="rock-hint">点击挖矿</span>
+        </button>
+        <p id="mineTip" class="mine-tip">每点击一次获得 1 矿石</p>
+      </section>
+
+      <aside class="buildings-panel">
+        <div class="panel-head">
+          <h2>设施</h2>
+          <span class="panel-sub">自动产出矿石</span>
+        </div>
+        <div id="buildingList" class="building-list"></div>
+      </aside>
+    </main>
+  </div>
+
+  <div id="floatLayer" class="float-layer" aria-hidden="true"></div>
+
+  <!-- 通用浮层窗口：可关闭，不可拖动 -->
+  <div id="modalLayer" class="modal-layer" hidden>
+    <div class="modal-window" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+      <div class="modal-head">
+        <h2 id="modalTitle"></h2>
+        <button id="modalClose" type="button" class="modal-close" aria-label="关闭">×</button>
+      </div>
+      <div id="modalBody" class="modal-body"></div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <script src="js/config.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
