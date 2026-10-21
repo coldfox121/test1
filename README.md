@@ -16,12 +16,11 @@ py -3 -m http.server 8000
 
 然后访问 http://localhost:8000
 
-## 部署到 Cloudflare Pages
+## 在线访问
 
-1. 在 Cloudflare 控制台进入 Workers & Pages → Create application → Pages → Connect to Git
-2. 选择本仓库
-3. Build settings 全部留空（Build command 不填，Output directory 填 `/`）
-4. 部署后访问 `https://<项目名>.pages.dev`
+已通过 Cloudflare Pages 自动部署，push 到 `main` 分支即自动更新：
+
+https://test1-5sf.pages.dev
 
 ## 启用云端账号（可选）
 
