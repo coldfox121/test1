@@ -44,12 +44,13 @@
           <button id="authSubmit" type="submit" class="btn-primary">登录</button>
         </form>
         <p class="auth-hint">云端账号：换设备登录可继续游戏进度。</p>
+        <button id="cloudGuestBtn" type="button" class="btn-text">暂不登录，本地试玩</button>
       </div>
 
       <div id="localAuth" hidden>
-        <p id="localNotice" class="auth-note">未配置云端服务，当前为本地试玩模式。存档只保存在本机浏览器中。</p>
+        <p id="localNotice" class="auth-note">当前环境未接入云后端，为本地试玩模式。存档只保存在本机浏览器中。</p>
         <button id="guestBtn" type="button" class="btn-primary">进入本地试玩</button>
-        <p class="auth-hint">在 js/config.js 中填入 Supabase 项目地址和匿名密钥即可启用云端账号。</p>
+        <p class="auth-hint">部署到 Cloudflare Pages 后自动启用云端账号，无需额外配置。</p>
       </div>
     </div>
     <p class="auth-foot">test1 · 增量放置游戏</p>
@@ -140,7 +141,6 @@
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
-  <script src="js/config.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>

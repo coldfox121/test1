@@ -208,6 +208,20 @@ p {
   font-size: 12px;
 }
 
+.btn-text {
+  display: block;
+  margin: 12px auto 0;
+  padding: 4px 10px;
+  background: none;
+  border: 0;
+  color: var(--faint);
+  font-size: 12px;
+}
+
+.btn-text:hover {
+  color: var(--accent-light);
+}
+
 .auth-foot {
   margin-top: 18px;
   color: var(--faint);

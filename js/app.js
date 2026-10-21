@@ -10,8 +10,7 @@
   const OFFLINE_MAX_HOURS = 8;
   const PRESTIGE_REQUIREMENT = 1000000;
 
-  const CFG = window.GAME_CONFIG || {};
-  const CLOUD_CONFIGURED = !!(CFG.SUPABASE_URL && CFG.SUPABASE_ANON_KEY);
+  const TOKEN_KEY = 'mine.cloud.token';
 
   // 设施：基础价格、价格增长率、每秒产量
   const BUILDINGS = [
@@ -80,6 +79,7 @@
   const authSubmit = document.getElementById('authSubmit');
   const authError = document.getElementById('authError');
   const guestBtn = document.getElementById('guestBtn');
+  const cloudGuestBtn = document.getElementById('cloudGuestBtn');
 
   const gameScreen = document.getElementById('gameScreen');
   const userTag = document.getElementById('userTag');
@@ -113,61 +113,85 @@
   let toastTimer = 0;
   const buildingRefs = new Map();
 
-  /* ---------------- 云端账号 ---------------- */
+  /* ---------------- 云端账号（Cloudflare Pages Functions + D1） ---------------- */
 
   const Cloud = {
-    client: null,
-    sdkPromise: null,
+    token: null,
 
-    async init() {
-      await this.loadSDK();
-      if (!window.supabase || typeof window.supabase.createClient !== 'function') {
-        throw new Error('云端 SDK 加载失败');
+    // 探测当前环境是否有云后端（本地 python 静态服务时无 /api，自动降级为本地试玩）
+    async detect() {
+      try {
+        const controller = new AbortController();
+        const timer = setTimeout(function () { controller.abort(); }, 5000);
+        const res = await fetch('/api/health', { cache: 'no-store', signal: controller.signal });
+        clearTimeout(timer);
+        return res.ok;
+      } catch (err) {
+        return false;
       }
-      this.client = window.supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_ANON_KEY, {
-        auth: {
-          persistSession: true,
-          autoRefreshToken: true,
-          detectSessionInUrl: false
-        }
-      });
     },
 
-    loadSDK() {
-      if (window.supabase) return Promise.resolve();
-      if (this.sdkPromise) return this.sdkPromise;
-      this.sdkPromise = new Promise(function (resolve, reject) {
-        const script = document.createElement('script');
-        script.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js';
-        script.async = true;
-        const timer = setTimeout(function () {
-          reject(new Error('云端 SDK 加载超时'));
-        }, 10000);
-        script.onload = function () {
-          clearTimeout(timer);
-          resolve();
-        };
-        script.onerror = function () {
-          clearTimeout(timer);
-          reject(new Error('云端 SDK 加载失败'));
-        };
-        document.head.appendChild(script);
+    async api(path, options) {
+      const headers = { 'Content-Type': 'application/json' };
+      if (this.token) headers.Authorization = 'Bearer ' + this.token;
+
+      const res = await fetch('/api/' + path, Object.assign({}, options, { headers: headers }));
+      let data = {};
+      try {
+        data = await res.json();
+      } catch (err) {
+        // 忽略解析错误，下面统一处理
+      }
+      if (!res.ok) {
+        const err = new Error(data.error || ('请求失败 (' + res.status + ')'));
+        err.status = res.status;
+        throw err;
+      }
+      return data;
+    },
+
+    setToken(token) {
+      this.token = token;
+      if (token) localStorage.setItem(TOKEN_KEY, token);
+      else localStorage.removeItem(TOKEN_KEY);
+    },
+
+    async register(username, password) {
+      const data = await this.api('register', {
+        method: 'POST',
+        body: JSON.stringify({ username: username, password: password })
       });
-      return this.sdkPromise;
+      this.setToken(data.token);
+      return data.username;
+    },
+
+    async login(username, password) {
+      const data = await this.api('login', {
+        method: 'POST',
+        body: JSON.stringify({ username: username, password: password })
+      });
+      this.setToken(data.token);
+      return data.username;
     },
 
     async loadGame() {
-      const response = await this.client.rpc('load_game');
-      if (response.error) throw response.error;
-      const rows = response.data;
-      if (Array.isArray(rows)) return rows[0] || null;
-      return rows || null;
+      return this.api('load', { method: 'GET' });
     },
 
     async saveGame(save) {
-      const response = await this.client.rpc('save_game', { p_save: save });
-      if (response.error) throw response.error;
-      return response.data;
+      return this.api('save', {
+        method: 'POST',
+        body: JSON.stringify({ save: save })
+      });
+    },
+
+    async logout() {
+      try {
+        await this.api('logout', { method: 'POST', body: '{}' });
+      } catch (err) {
+        console.error(err);
+      }
+      this.setToken(null);
     }
   };
 
@@ -677,11 +701,7 @@
     if (!confirm('确定退出当前云端账号吗？')) return;
 
     await saveNow(false);
-    try {
-      await Cloud.client.auth.signOut();
-    } catch (err) {
-      console.error(err);
-    }
+    await Cloud.logout();
     location.reload();
   }
 
@@ -702,8 +722,8 @@
     const row = await Cloud.loadGame();
 
     if (row && row.save && Object.keys(row.save).length > 0) {
-      const serverNow = Date.parse(row.server_now) || Date.now();
-      const lastSeen = row.last_seen ? Date.parse(row.last_seen) : null;
+      const serverNow = Number(row.server_now) || Date.now();
+      const lastSeen = row.last_seen != null ? Number(row.last_seen) : null;
       beginGame(migrate(row.save), 'cloud', username, serverNow, lastSeen);
       return;
     }
@@ -827,55 +847,18 @@
 
   function authMessage(err) {
     const msg = (err && err.message) || String(err || '未知错误');
-    if (/Invalid login credentials/i.test(msg)) return '账号或密码错误';
-    if (/User already registered/i.test(msg)) return '该账号已注册，请直接登录';
-    if (/Password should be at least/i.test(msg)) return '密码至少 6 位';
-    if (/Email not confirmed/i.test(msg)) return '账号未验证，请在 Supabase 后台关闭邮箱验证后重试';
-    if (/Failed to fetch|NetworkError|Load failed/i.test(msg)) return '网络连接失败，请检查网络后重试';
+    if (/Failed to fetch|NetworkError|Load failed|abort/i.test(msg)) return '网络连接失败，请检查网络后重试';
     return msg;
   }
 
-  function usernameToEmail(username) {
-    return username.toLowerCase() + '@player.test1game.com';
-  }
-
   async function register(username, password) {
-    const name = username.toLowerCase();
-    const response = await Cloud.client.auth.signUp({
-      email: usernameToEmail(name),
-      password: password,
-      options: { data: { username: name } }
-    });
-    if (response.error) throw response.error;
-
-    if (!response.data.session) {
-      throw new Error('注册已创建，但项目开启了邮箱验证。请在 Supabase 后台关闭 Confirm email 后再登录。');
-    }
-
-    const profile = await Cloud.client.from('profiles').insert({
-      id: response.data.user.id,
-      username: name,
-      save: newState()
-    });
-    if (profile.error) {
-      await Cloud.client.auth.signOut();
-      if (profile.error.code === '23505') throw new Error('该账号已被占用');
-      throw profile.error;
-    }
-
+    const name = await Cloud.register(username.toLowerCase(), password);
     await enterCloud(name);
   }
 
   async function login(username, password) {
-    const name = username.toLowerCase();
-    const response = await Cloud.client.auth.signInWithPassword({
-      email: usernameToEmail(name),
-      password: password
-    });
-    if (response.error) throw response.error;
-
-    const metaName = (response.data.user.user_metadata && response.data.user.user_metadata.username) || name;
-    await enterCloud(metaName);
+    const name = await Cloud.login(username.toLowerCase(), password);
+    await enterCloud(name);
   }
 
   async function onAuthSubmit(event) {
@@ -914,6 +897,7 @@
 
     authForm.addEventListener('submit', onAuthSubmit);
     guestBtn.addEventListener('click', enterGuest);
+    cloudGuestBtn.addEventListener('click', enterGuest);
 
     rock.addEventListener('click', mine);
 
@@ -963,31 +947,29 @@
     bindEvents();
     setAuthMode('login');
 
-    if (!CLOUD_CONFIGURED) {
-      showLocalAuth();
+    const cloudAvailable = await Cloud.detect();
+    if (!cloudAvailable) {
+      showLocalAuth('当前环境未接入云后端（例如本地静态服务），可进入本地试玩。部署到 Cloudflare Pages 后即可使用云端账号。');
       return;
     }
 
     showCloudAuth();
+    Cloud.token = localStorage.getItem(TOKEN_KEY) || null;
+    if (!Cloud.token) return;
 
+    // 已有登录态：直接进入游戏；token 失效则清除并回到登录界面
+    setAuthBusy(true);
     try {
-      await Cloud.init();
-      const session = await Cloud.client.auth.getSession();
-      const user = session.data && session.data.session && session.data.session.user;
-
-      if (user) {
-        const username = (user.user_metadata && user.user_metadata.username) || '玩家';
-        setAuthBusy(true);
-        try {
-          await enterCloud(username);
-        } catch (err) {
-          authError.textContent = authMessage(err);
-        } finally {
-          setAuthBusy(false);
-        }
-      }
+      const row = await Cloud.loadGame();
+      await enterCloud(row.username || '玩家');
     } catch (err) {
-      showLocalAuth('云端初始化失败：' + ((err && err.message) || '未知错误') + '。当前可先本地试玩。');
+      if (err && err.status === 401) {
+        Cloud.setToken(null);
+      } else {
+        authError.textContent = authMessage(err);
+      }
+    } finally {
+      setAuthBusy(false);
     }
   }
 
